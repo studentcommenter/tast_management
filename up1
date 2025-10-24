@@ -1,0 +1,178 @@
+Here are the changes needed:
+
+## In `init_tab1` method, after binding mousewheel scrolling (around line 106):
+
+Replace:
+```python
+        self.tab1_canvas.bind('<MouseWheel>', lambda e: self.tab1_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab1_canvas.bind('<Shift-MouseWheel>', lambda e: self.tab1_canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
+```
+
+With:
+```python
+        self.tab1_canvas.bind('<MouseWheel>', lambda e: self.tab1_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab1_canvas.bind('<Shift-MouseWheel>', lambda e: self.tab1_canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab1_canvas.bind('<Control-MouseWheel>', self.tab1_zoom)
+        self.tab1_canvas.bind('<plus>', lambda e: self.tab1_zoom_button(1.1))
+        self.tab1_canvas.bind('<minus>', lambda e: self.tab1_zoom_button(0.9))
+        self.tab1_canvas.bind('<equal>', lambda e: self.tab1_zoom_button(1.1))
+        self.tab1_zoom_level = 1.0
+```
+
+## After `tab1_upload_image` method, add new methods:
+
+```python
+    def tab1_zoom(self, event):
+        """Zoom image with Ctrl+MouseWheel"""
+        if self.tab1_image is None:
+            return
+        
+        factor = 1.1 if event.delta > 0 else 0.9
+        self.tab1_zoom_level *= factor
+        self.tab1_zoom_level = max(0.1, min(10.0, self.tab1_zoom_level))
+        self.tab1_display_image()
+
+    def tab1_zoom_button(self, factor):
+        """Zoom image with +/- keys"""
+        if self.tab1_image is None:
+            return
+        
+        self.tab1_zoom_level *= factor
+        self.tab1_zoom_level = max(0.1, min(10.0, self.tab1_zoom_level))
+        self.tab1_display_image()
+```
+
+## Replace `tab1_display_image` method:
+
+```python
+    def tab1_display_image(self):
+        """Display image on canvas"""
+        if self.tab1_image is not None:
+            display_img = self.tab1_image.copy()
+
+            if len(self.tab1_polygon_points) > 0:
+                for i in range(len(self.tab1_polygon_points) - 1):
+                    cv2.line(display_img, self.tab1_polygon_points[i],
+                            self.tab1_polygon_points[i + 1], (0, 255, 0), 2)
+
+                if self.tab1_polygon_closed:
+                    cv2.line(display_img, self.tab1_polygon_points[-1],
+                            self.tab1_polygon_points[0], (0, 255, 0), 2)
+
+                for idx, point in enumerate(self.tab1_polygon_points):
+                    cv2.circle(display_img, point, 7, (255, 0, 0), -1)
+                    cv2.circle(display_img, point, 8, (255, 255, 255), 2)
+
+            pil_img = Image.fromarray(display_img)
+            new_width = int(pil_img.width * self.tab1_zoom_level)
+            new_height = int(pil_img.height * self.tab1_zoom_level)
+            pil_img = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            self.tab1_photo = ImageTk.PhotoImage(pil_img)
+
+            self.tab1_canvas.delete("all")
+            self.tab1_canvas.create_image(0, 0, anchor='nw', image=self.tab1_photo)
+            self.tab1_canvas.configure(scrollregion=self.tab1_canvas.bbox("all"))
+```
+
+## Replace `tab1_canvas_click` method:
+
+```python
+    def tab1_canvas_click(self, event):
+        """Handle canvas click to add polygon points or close polygon"""
+        if self.tab1_image is not None and not self.tab1_polygon_closed:
+            x = int(self.tab1_canvas.canvasx(event.x) / self.tab1_zoom_level)
+            y = int(self.tab1_canvas.canvasy(event.y) / self.tab1_zoom_level)
+
+            if len(self.tab1_polygon_points) >= 3:
+                first_point = self.tab1_polygon_points[0]
+                distance = math.sqrt((x - first_point[0])**2 + (y - first_point[1])**2)
+
+                if distance <= 15:
+                    self.tab1_polygon_closed = True
+                    self.tab1_display_image()
+                    self.tab1_info_label.config(
+                        text=f"Polygon closed with {len(self.tab1_polygon_points)} points. Ready to save."
+                    )
+                    return
+
+            self.tab1_polygon_points.append((int(x), int(y)))
+            self.tab1_display_image()
+
+            if len(self.tab1_polygon_points) < 3:
+                self.tab1_info_label.config(
+                    text=f"Points selected: {len(self.tab1_polygon_points)} (need at least 3)"
+                )
+            else:
+                self.tab1_info_label.config(
+                    text=f"Points selected: {len(self.tab1_polygon_points)} (click on point 1 to close)"
+                )
+```
+
+## In `init_tab2` method, after binding mousewheel scrolling (around line 249):
+
+Replace:
+```python
+        self.tab2_canvas.bind('<MouseWheel>', lambda e: self.tab2_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab2_canvas.bind('<Shift-MouseWheel>', lambda e: self.tab2_canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
+```
+
+With:
+```python
+        self.tab2_canvas.bind('<MouseWheel>', lambda e: self.tab2_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab2_canvas.bind('<Shift-MouseWheel>', lambda e: self.tab2_canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
+        self.tab2_canvas.bind('<Control-MouseWheel>', self.tab2_zoom)
+        self.tab2_canvas.bind('<plus>', lambda e: self.tab2_zoom_button(1.1))
+        self.tab2_canvas.bind('<minus>', lambda e: self.tab2_zoom_button(0.9))
+        self.tab2_canvas.bind('<equal>', lambda e: self.tab2_zoom_button(1.1))
+        self.tab2_zoom_level = 1.0
+```
+
+## After `tab2_load_roi` method, add new methods:
+
+```python
+    def tab2_zoom(self, event):
+        """Zoom image with Ctrl+MouseWheel"""
+        if self.current_step not in self.step_images:
+            return
+        
+        factor = 1.1 if event.delta > 0 else 0.9
+        self.tab2_zoom_level *= factor
+        self.tab2_zoom_level = max(0.1, min(10.0, self.tab2_zoom_level))
+        self.display_current_step()
+
+    def tab2_zoom_button(self, factor):
+        """Zoom image with +/- keys"""
+        if self.current_step not in self.step_images:
+            return
+        
+        self.tab2_zoom_level *= factor
+        self.tab2_zoom_level = max(0.1, min(10.0, self.tab2_zoom_level))
+        self.display_current_step()
+```
+
+## Replace the image display section in `display_current_step` method (around line 651):
+
+Replace:
+```python
+        image = self.step_images[self.current_step]
+        pil_img = Image.fromarray(image)
+        self.tab2_photo = ImageTk.PhotoImage(pil_img)
+
+        self.tab2_canvas.delete("all")
+        self.tab2_canvas.create_image(0, 0, anchor='nw', image=self.tab2_photo)
+        self.tab2_canvas.configure(scrollregion=self.tab2_canvas.bbox("all"))
+```
+
+With:
+```python
+        image = self.step_images[self.current_step]
+        pil_img = Image.fromarray(image)
+        new_width = int(pil_img.width * self.tab2_zoom_level)
+        new_height = int(pil_img.height * self.tab2_zoom_level)
+        pil_img = pil_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self.tab2_photo = ImageTk.PhotoImage(pil_img)
+
+        self.tab2_canvas.delete("all")
+        self.tab2_canvas.create_image(0, 0, anchor='nw', image=self.tab2_photo)
+        self.tab2_canvas.configure(scrollregion=self.tab2_canvas.bbox("all"))
+``` 
